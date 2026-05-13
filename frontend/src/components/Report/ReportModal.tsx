@@ -147,7 +147,7 @@ export default function ReportModal({ prefillLat, prefillLng, onClose, onSuccess
         {/* Step indicator */}
         <div className="flex gap-0 border-b border-gray-100">
           {(['location', 'details'] as const).map((s, i) => {
-            const done = step === 'success' || (s === 'location' && (step === 'details' || step === 'success'))
+            const done = step === 'success' || (s === 'location' && step !== 'location')
             const active = step === s
             return (
               <div key={s} className={`flex-1 flex items-center gap-2 px-4 py-2.5 text-xs font-semibold border-b-2 transition-colors ${
