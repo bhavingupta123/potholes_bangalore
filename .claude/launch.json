@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "roadwatch-frontend",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--prefix", "/Users/bhavin.gupta/Documents/project/track_pothholes/frontend"],
+      "port": 5173
+    }
+  ]
+}
