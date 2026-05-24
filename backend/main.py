@@ -1,12 +1,13 @@
 import math
 import os
-import sqlite3
 import urllib.request
 import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
+
+import libsql_experimental as libsql
 
 import aiofiles
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
@@ -19,7 +20,8 @@ UPLOADS_DIR.mkdir(exist_ok=True)
 
 STATIC_DIR = Path(__file__).parent / "static"
 
-DB_PATH = Path(__file__).parent / "roadwatch.db"
+TURSO_URL = os.environ.get("TURSO_URL", "")
+TURSO_TOKEN = os.environ.get("TURSO_TOKEN", "")
 CLUSTER_RADIUS_KM = 2.0
 PORT = int(os.environ.get("PORT", 8000))
 
@@ -37,15 +39,20 @@ def haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
 
+def _dict_factory(cursor, row):
+    fields = [d[0] for d in cursor.description]
+    return {k: v for k, v in zip(fields, row)}
+
+
 def get_db():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
+    conn = libsql.connect(database=TURSO_URL, auth_token=TURSO_TOKEN)
+    conn.row_factory = _dict_factory
     return conn
 
 
 def init_db():
     conn = get_db()
-    conn.executescript("""
+    conn.execute("""
         CREATE TABLE IF NOT EXISTS clusters (
             id TEXT PRIMARY KEY,
             center_lat REAL NOT NULL,
@@ -56,8 +63,9 @@ def init_db():
             area_name TEXT,
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL
-        );
-
+        )
+    """)
+    conn.execute("""
         CREATE TABLE IF NOT EXISTS issues (
             id TEXT PRIMARY KEY,
             title TEXT NOT NULL,
@@ -74,8 +82,9 @@ def init_db():
             upvotes INTEGER DEFAULT 0,
             created_at TEXT NOT NULL,
             FOREIGN KEY (cluster_id) REFERENCES clusters(id)
-        );
-
+        )
+    """)
+    conn.execute("""
         CREATE TABLE IF NOT EXISTS comments (
             id TEXT PRIMARY KEY,
             issue_id TEXT NOT NULL,
@@ -83,8 +92,9 @@ def init_db():
             author_name TEXT,
             created_at TEXT NOT NULL,
             FOREIGN KEY (issue_id) REFERENCES issues(id)
-        );
-
+        )
+    """)
+    conn.execute("""
         CREATE TABLE IF NOT EXISTS resolutions (
             id TEXT PRIMARY KEY,
             issue_id TEXT NOT NULL UNIQUE,
@@ -94,7 +104,7 @@ def init_db():
             confirm_votes INTEGER DEFAULT 0,
             dispute_votes INTEGER DEFAULT 0,
             created_at TEXT NOT NULL
-        );
+        )
     """)
     conn.commit()
     conn.close()
@@ -133,7 +143,7 @@ def update_cluster_center(conn, cluster_id: str, new_lat: float, new_lng: float)
 
 
 def row_to_dict(row):
-    return dict(row) if row else None
+    return row if row else None
 
 
 @asynccontextmanager
