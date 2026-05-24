@@ -17,11 +17,11 @@ export default function Header({ activeView, onViewChange, onReportClick }: Head
         {/* Logo */}
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center shadow-sm">
-            <span className="text-white text-sm font-bold">RW</span>
+            <span className="text-white text-base">🛣️</span>
           </div>
           <div className="leading-tight">
-            <span className="font-bold text-gray-900 text-sm tracking-tight">RoadWatch</span>
-            <span className="text-xs text-orange-600 font-medium block -mt-0.5">India</span>
+            <span className="font-bold text-gray-900 text-sm tracking-tight">Fix India's Roads</span>
+            <span className="text-xs text-orange-600 font-medium block -mt-0.5">Citizen · Community · Action</span>
           </div>
         </div>
 

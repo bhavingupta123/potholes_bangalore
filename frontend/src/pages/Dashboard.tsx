@@ -78,7 +78,7 @@ export default function Dashboard({ stats, loading }: DashboardProps) {
       {/* Top summary cards */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">India Road Issues</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Fix India's Roads</h1>
           <p className="text-sm text-gray-500 mt-0.5">Real-time dashboard for civic authorities</p>
         </div>
         <a
