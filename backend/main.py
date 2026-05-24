@@ -113,8 +113,7 @@ class TursoConn:
                 results.append(_TursoResult(cols, rows))
         return results
 
-    def execute(self, sql: str, params=()) -> _TursoResult:
-        # Build positional args for Turso
+    def _build_args(self, params) -> list:
         args = []
         for p in params:
             if p is None:
@@ -127,18 +126,21 @@ class TursoConn:
                 args.append({"type": "float", "value": p})
             else:
                 args.append({"type": "text", "value": str(p)})
+        return args
 
-        stmt = {"sql": sql, "args": args}
-        sql_upper = sql.strip().upper()
-
-        if sql_upper.startswith(("SELECT", "PRAGMA")):
-            # Read — send immediately
+    def execute(self, sql: str, params=()) -> _TursoResult:
+        stmt = {"sql": sql, "args": self._build_args(params)}
+        if sql.strip().upper().startswith(("SELECT", "PRAGMA")):
             results = self._send([stmt])
             return results[0] if results else _TursoResult([], [])
         else:
-            # Write — queue for commit
             self._pending.append(stmt)
             return _TursoResult([], [])
+
+    def batch_read(self, queries: list[tuple[str, tuple]]) -> list[_TursoResult]:
+        """Send multiple SELECT statements in ONE HTTP round-trip."""
+        stmts = [{"sql": sql, "args": self._build_args(params)} for sql, params in queries]
+        return self._send(stmts)
 
     def commit(self):
         if self._pending:
@@ -272,7 +274,7 @@ app.mount("/uploads", StaticFiles(directory=str(UPLOADS_DIR)), name="uploads")
 @app.get("/api/geocode")
 def geocode(q: str):
     """Proxy to Nominatim to avoid CORS. Restricts to India."""
-    query = urllib.parse.urlencode({"q": q, "format": "json", "countrycodes": "in", "limit": 5, "addressdetails": 1})
+    query = urllib.parse.urlencode({"q": q, "format": "json", "countrycodes": "in", "limit": 10, "addressdetails": 1})
     url = f"https://nominatim.openstreetmap.org/search?{query}"
     req = urllib.request.Request(url, headers={"User-Agent": "RoadWatch-Bangalore/1.0"})
     try:
@@ -511,34 +513,34 @@ def get_cluster(cluster_id: str):
 def get_stats():
     conn = get_db()
     try:
-        total_issues = conn.execute("SELECT COUNT(*) as c FROM issues").fetchone()["c"]
-        total_clusters = conn.execute("SELECT COUNT(*) as c FROM clusters").fetchone()["c"]
-        resolved = conn.execute("SELECT COUNT(*) as c FROM issues WHERE status = 'resolved'").fetchone()["c"]
-        in_progress = conn.execute("SELECT COUNT(*) as c FROM issues WHERE status = 'in_progress'").fetchone()["c"]
-        critical = conn.execute("SELECT COUNT(*) as c FROM issues WHERE severity = 'critical'").fetchone()["c"]
-        total_comments = conn.execute("SELECT COUNT(*) as c FROM comments").fetchone()["c"]
-
-        by_type = {r["type"]: r["c"] for r in conn.execute("SELECT type, COUNT(*) as c FROM issues GROUP BY type").fetchall()}
-        by_severity = {r["severity"]: r["c"] for r in conn.execute("SELECT severity, COUNT(*) as c FROM issues GROUP BY severity").fetchall()}
-        by_status = {r["status"]: r["c"] for r in conn.execute("SELECT status, COUNT(*) as c FROM issues GROUP BY status").fetchall()}
-
-        top_clusters = [row_to_dict(r) for r in conn.execute("SELECT * FROM clusters ORDER BY issue_count DESC LIMIT 10").fetchall()]
-        recent_7d = [dict(r) for r in conn.execute(
-            "SELECT DATE(created_at) as date, COUNT(*) as count FROM issues WHERE created_at >= datetime('now', '-7 days') GROUP BY DATE(created_at) ORDER BY date"
-        ).fetchall()]
+        # All 11 queries in ONE Turso HTTP round-trip
+        results = conn.batch_read([
+            ("SELECT COUNT(*) as c FROM issues", ()),
+            ("SELECT COUNT(*) as c FROM clusters", ()),
+            ("SELECT COUNT(*) as c FROM issues WHERE status = 'resolved'", ()),
+            ("SELECT COUNT(*) as c FROM issues WHERE status = 'in_progress'", ()),
+            ("SELECT COUNT(*) as c FROM issues WHERE severity = 'critical'", ()),
+            ("SELECT COUNT(*) as c FROM comments", ()),
+            ("SELECT type, COUNT(*) as c FROM issues GROUP BY type", ()),
+            ("SELECT severity, COUNT(*) as c FROM issues GROUP BY severity", ()),
+            ("SELECT status, COUNT(*) as c FROM issues GROUP BY status", ()),
+            ("SELECT * FROM clusters ORDER BY issue_count DESC LIMIT 10", ()),
+            ("SELECT DATE(created_at) as date, COUNT(*) as count FROM issues WHERE created_at >= datetime('now', '-7 days') GROUP BY DATE(created_at) ORDER BY date", ()),
+        ])
+        r0, r1, r2, r3, r4, r5, r6, r7, r8, r9, r10 = results
 
         return {
-            "total_issues": total_issues,
-            "total_clusters": total_clusters,
-            "resolved": resolved,
-            "in_progress": in_progress,
-            "critical": critical,
-            "total_comments": total_comments,
-            "by_type": by_type,
-            "by_severity": by_severity,
-            "by_status": by_status,
-            "top_clusters": top_clusters,
-            "recent_7d": recent_7d,
+            "total_issues":   r0.fetchone()["c"],
+            "total_clusters": r1.fetchone()["c"],
+            "resolved":       r2.fetchone()["c"],
+            "in_progress":    r3.fetchone()["c"],
+            "critical":       r4.fetchone()["c"],
+            "total_comments": r5.fetchone()["c"],
+            "by_type":     {r["type"]:     r["c"] for r in r6.fetchall()},
+            "by_severity": {r["severity"]: r["c"] for r in r7.fetchall()},
+            "by_status":   {r["status"]:   r["c"] for r in r8.fetchall()},
+            "top_clusters": [row_to_dict(r) for r in r9.fetchall()],
+            "recent_7d":    [dict(r) for r in r10.fetchall()],
         }
     finally:
         conn.close()

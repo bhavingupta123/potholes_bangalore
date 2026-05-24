@@ -123,10 +123,10 @@ export default function Home({
       </div>
 
       {/* ── Main layout ───────────────────────────────────────────────────── */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-col md:flex-row flex-1 overflow-hidden">
 
-        {/* Left: Map */}
-        <div className="flex-1 relative min-w-0">
+        {/* Top (mobile) / Left (desktop): Map */}
+        <div className="h-[52vw] min-h-[220px] md:h-auto md:flex-1 relative min-w-0 shrink-0 md:shrink">
 
           {/* Filter bar floating over map */}
           <div className="absolute top-3 left-3 z-[500] flex items-center gap-2 flex-wrap max-w-[calc(100%-16px)]">
@@ -265,8 +265,8 @@ export default function Home({
           </button>
         </div>
 
-        {/* Right: Issue feed */}
-        <div className="w-[400px] flex flex-col bg-gray-50 border-l border-gray-200 shrink-0">
+        {/* Bottom (mobile) / Right (desktop): Issue feed */}
+        <div className="w-full md:w-[400px] flex flex-col bg-gray-50 border-t md:border-t-0 md:border-l border-gray-200 flex-1 md:flex-none md:shrink-0">
 
           {/* Zone detail header (shown when a cluster is selected) */}
           {selectedCluster ? (

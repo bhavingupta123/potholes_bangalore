@@ -8,7 +8,7 @@ interface ReportModalProps {
   prefillLat?: number
   prefillLng?: number
   onClose: () => void
-  onSuccess: () => void
+  onSuccess: (lat: number, lng: number) => void
 }
 
 type Step = 'location' | 'details' | 'success'
@@ -72,14 +72,16 @@ export default function ReportModal({ prefillLat, prefillLng, onClose, onSuccess
     searchTimeout.current = setTimeout(async () => {
       setSearching(true)
       try {
-        const results = await geocodeAddress(`${value}, Bangalore, Karnataka, India`)
-        setGeoResults(results.slice(0, 4))
+        // Append Bangalore context but let user's query lead — backend already restricts to India
+        const query = value.toLowerCase().includes('bangalore') ? value : `${value}, Bangalore`
+        const results = await geocodeAddress(query)
+        setGeoResults(results) // show all results returned (backend caps at 10)
       } catch {
         // silently fail
       } finally {
         setSearching(false)
       }
-    }, 500)
+    }, 400)
   }
 
   function selectGeoResult(r: GeoResult) {
@@ -120,7 +122,7 @@ export default function ReportModal({ prefillLat, prefillLng, onClose, onSuccess
     try {
       await createIssue(fd)
       setStep('success')
-      setTimeout(() => { onSuccess(); onClose() }, 2200)
+      setTimeout(() => { onSuccess(lat, lng); onClose() }, 2200)
     } catch {
       setError('Failed to submit. Please try again.')
     } finally {
@@ -192,37 +194,47 @@ export default function ReportModal({ prefillLat, prefillLng, onClose, onSuccess
                 <div className="flex-1 h-px bg-gray-200" />
               </div>
 
-              {/* Address search */}
-              <div className="space-y-2">
+              {/* Address search — dropdown is absolutely positioned so it overlays content */}
+              <div>
                 <div className="relative">
-                  <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 z-10 pointer-events-none" />
                   <input
                     value={addressQuery}
                     onChange={e => handleAddressInput(e.target.value)}
                     placeholder="e.g. Indiranagar 100ft Road…"
-                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+                    className="w-full pl-10 pr-9 py-3 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+                    autoComplete="off"
                   />
-                  {searching && (
-                    <Loader2 size={14} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 animate-spin" />
+                  {searching
+                    ? <Loader2 size={14} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 animate-spin" />
+                    : addressQuery && (
+                      <button
+                        onClick={() => { setAddressQuery(''); setGeoResults([]) }}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      >
+                        <X size={14} />
+                      </button>
+                    )
+                  }
+
+                  {/* Floating dropdown — z-[9999] so it escapes any overflow constraints */}
+                  {geoResults.length > 0 && (
+                    <div className="absolute top-full left-0 right-0 mt-1.5 bg-white border border-gray-200 rounded-xl shadow-2xl z-[9999] max-h-60 overflow-y-auto">
+                      {geoResults.map((r, i) => (
+                        <button
+                          key={i}
+                          onClick={() => selectGeoResult(r)}
+                          className="w-full flex items-start gap-3 px-4 py-3 hover:bg-orange-50 text-left border-b border-gray-100 last:border-0 transition-colors"
+                        >
+                          <MapPin size={14} className="text-orange-400 shrink-0 mt-0.5" />
+                          <span className="text-sm text-gray-700 leading-snug">
+                            {r.display_name.split(',').slice(0, 5).join(', ')}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
                   )}
                 </div>
-
-                {geoResults.length > 0 && (
-                  <div className="bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
-                    {geoResults.map((r, i) => (
-                      <button
-                        key={i}
-                        onClick={() => selectGeoResult(r)}
-                        className="w-full flex items-start gap-3 px-4 py-3 hover:bg-orange-50 text-left border-b border-gray-100 last:border-0 transition-colors"
-                      >
-                        <MapPin size={14} className="text-orange-400 shrink-0 mt-0.5" />
-                        <span className="text-sm text-gray-700 leading-snug">
-                          {r.display_name.split(',').slice(0, 4).join(', ')}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                )}
               </div>
 
               {/* Divider */}
@@ -257,7 +269,7 @@ export default function ReportModal({ prefillLat, prefillLng, onClose, onSuccess
 
               <div className="flex items-start gap-2 text-xs text-gray-500 bg-blue-50 px-3 py-2.5 rounded-xl">
                 <MapPin size={12} className="text-blue-400 shrink-0 mt-0.5" />
-                <span>Tip: Close this and click anywhere on the map to auto-fill the location.</span>
+                <span>Tip: Close this and tap anywhere on the map to auto-fill the location.</span>
               </div>
 
               <button

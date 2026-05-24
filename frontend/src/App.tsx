@@ -18,8 +18,9 @@ export default function App() {
 
   const [reportModalOpen, setReportModalOpen] = useState(false)
   const [reportPrefill, setReportPrefill] = useState<{ lat?: number; lng?: number }>({})
+  const [pendingFlyTo, setPendingFlyTo] = useState<{ lat: number; lng: number } | null>(null)
 
-  async function loadAll() {
+  async function loadAll(flyTo?: { lat: number; lng: number }) {
     setLoading(true)
     try {
       const [clusterRes, issueRes, statsRes] = await Promise.all([
@@ -30,6 +31,22 @@ export default function App() {
       setClusters(clusterRes.clusters)
       setAllIssues(issueRes.issues)
       setStats(statsRes)
+
+      // After a new report, find its cluster and fly to it
+      if (flyTo) {
+        const nearest = clusterRes.clusters.reduce<{ cluster: typeof clusterRes.clusters[0]; dist: number } | null>(
+          (best, c) => {
+            const d = Math.hypot(c.center_lat - flyTo.lat, c.center_lng - flyTo.lng)
+            return !best || d < best.dist ? { cluster: c, dist: d } : best
+          },
+          null
+        )
+        if (nearest) {
+          setSelectedCluster(nearest.cluster)
+          const data = await fetchCluster(nearest.cluster.id)
+          setClusterIssues(data.issues)
+        }
+      }
     } finally {
       setLoading(false)
     }
@@ -95,7 +112,7 @@ export default function App() {
           prefillLat={reportPrefill.lat}
           prefillLng={reportPrefill.lng}
           onClose={() => setReportModalOpen(false)}
-          onSuccess={() => { loadAll(); setReportModalOpen(false) }}
+          onSuccess={(lat, lng) => { loadAll({ lat, lng }); setReportModalOpen(false) }}
         />
       )}
     </div>
