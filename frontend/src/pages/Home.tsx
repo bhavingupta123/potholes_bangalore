@@ -1,6 +1,7 @@
 import { AlertTriangle, ArrowLeft, CheckCircle, Filter, Layers, RefreshCw, Search, SlidersHorizontal, X, Zap } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import IssueCard from '../components/Issue/IssueCard'
+import IssueModal from '../components/Issue/IssueModal'
 import MapView from '../components/Map/MapView'
 import type { Cluster, Issue, IssueType, Severity, Stats } from '../types'
 import { ALL_ISSUE_TYPES, ALL_SEVERITIES, ISSUE_TYPE_CONFIG, SEVERITY_CONFIG } from '../utils/constants'
@@ -32,6 +33,7 @@ export default function Home({
   const [activeTypes, setActiveTypes] = useState<IssueType[]>([])
   const [activeSeverities, setActiveSeverities] = useState<Severity[]>([])
   const [showFilterPanel, setShowFilterPanel] = useState(false)
+  const [openIssue, setOpenIssue] = useState<Issue | null>(null)
   const feedRef = useRef<HTMLDivElement>(null)
 
   // Scroll feed to top whenever zone selection changes
@@ -393,7 +395,7 @@ export default function Home({
               </div>
             ) : (
               feedIssues.map(issue => (
-                <IssueCard key={issue.id} issue={issue} onUpvote={onUpvote} />
+                <IssueCard key={issue.id} issue={issue} onUpvote={onUpvote} onOpen={setOpenIssue} />
               ))
             )}
           </div>
@@ -408,6 +410,15 @@ export default function Home({
           </div>
         </div>
       </div>
+
+      {/* Issue detail modal */}
+      {openIssue && (
+        <IssueModal
+          issue={openIssue}
+          onClose={() => setOpenIssue(null)}
+          onUpvote={onUpvote}
+        />
+      )}
     </div>
   )
 }

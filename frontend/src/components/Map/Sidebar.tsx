@@ -17,6 +17,7 @@ interface SidebarProps {
   onClusterClick: (c: Cluster) => void
   onCloseDetail: () => void
   onUpvote: (issueId: string, n: number) => void
+  onOpen: (issue: Issue) => void
   onRefresh: () => void
   loading: boolean
 }
@@ -33,6 +34,7 @@ export default function Sidebar({
   onClusterClick,
   onCloseDetail,
   onUpvote,
+  onOpen,
   onRefresh,
   loading,
 }: SidebarProps) {
@@ -81,6 +83,7 @@ export default function Sidebar({
           issues={clusterIssues}
           onClose={onCloseDetail}
           onUpvote={onUpvote}
+          onOpen={onOpen}
         />
       ) : (
         <div className="flex-1 overflow-y-auto">

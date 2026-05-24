@@ -9,20 +9,28 @@ interface IssueDetailProps {
   issues: Issue[]
   onClose: () => void
   onUpvote: (issueId: string, newCount: number) => void
+  onOpen: (issue: Issue) => void
 }
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
-function IssueCard({ issue, onUpvote }: { issue: Issue; onUpvote: (id: string, n: number) => void }) {
+function IssueCard({
+  issue, onUpvote, onOpen,
+}: {
+  issue: Issue
+  onUpvote: (id: string, n: number) => void
+  onOpen: (issue: Issue) => void
+}) {
   const [upvoted, setUpvoted] = useState(false)
   const [count, setCount] = useState(issue.upvotes)
   const typeCfg = ISSUE_TYPE_CONFIG[issue.type]
   const sevCfg = SEVERITY_CONFIG[issue.severity]
   const statusCfg = STATUS_CONFIG[issue.status]
 
-  async function handleUpvote() {
+  async function handleUpvote(e: React.MouseEvent) {
+    e.stopPropagation()
     if (upvoted) return
     const data = await upvoteIssue(issue.id)
     setCount(data.upvotes)
@@ -31,7 +39,10 @@ function IssueCard({ issue, onUpvote }: { issue: Issue; onUpvote: (id: string, n
   }
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+    <button
+      onClick={() => onOpen(issue)}
+      className="w-full text-left bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-md active:scale-[0.99] transition-all"
+    >
       {issue.photo_path && (
         <img
           src={mediaUrl(issue.photo_path)!}
@@ -80,24 +91,27 @@ function IssueCard({ issue, onUpvote }: { issue: Issue; onUpvote: (id: string, n
               <Calendar size={11} /> {formatDate(issue.created_at)}
             </span>
           </div>
-          <button
-            onClick={handleUpvote}
-            className={`flex items-center gap-1 px-2 py-1 rounded-lg transition-colors ${
-              upvoted
-                ? 'text-orange-600 bg-orange-50'
-                : 'text-gray-500 hover:text-orange-600 hover:bg-orange-50'
-            }`}
-          >
-            <ThumbsUp size={11} />
-            <span className="font-medium">{count}</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleUpvote}
+              className={`flex items-center gap-1 px-2 py-1 rounded-lg transition-colors ${
+                upvoted
+                  ? 'text-orange-600 bg-orange-50'
+                  : 'text-gray-500 hover:text-orange-600 hover:bg-orange-50'
+              }`}
+            >
+              <ThumbsUp size={11} />
+              <span className="font-medium">{count}</span>
+            </button>
+            <span className="text-orange-500 font-semibold text-xs">View →</span>
+          </div>
         </div>
       </div>
-    </div>
+    </button>
   )
 }
 
-export default function IssueDetail({ cluster, issues, onClose, onUpvote }: IssueDetailProps) {
+export default function IssueDetail({ cluster, issues, onClose, onUpvote, onOpen }: IssueDetailProps) {
   const [expanded, setExpanded] = useState(false)
   if (!cluster) return null
 
@@ -154,7 +168,7 @@ export default function IssueDetail({ cluster, issues, onClose, onUpvote }: Issu
         ) : (
           <>
             {visible.map(issue => (
-              <IssueCard key={issue.id} issue={issue} onUpvote={onUpvote} />
+              <IssueCard key={issue.id} issue={issue} onUpvote={onUpvote} onOpen={onOpen} />
             ))}
             {issues.length > 2 && (
               <button
@@ -172,7 +186,7 @@ export default function IssueDetail({ cluster, issues, onClose, onUpvote }: Issu
       <div className="p-3 border-t border-gray-100 bg-gray-50">
         <div className="flex items-center gap-1.5 text-xs text-gray-500">
           <ArrowUpCircle size={12} className="text-orange-500" />
-          Reports within 2km are grouped together
+          Reports within 2km are grouped together · tap a card to view details
         </div>
       </div>
     </div>
