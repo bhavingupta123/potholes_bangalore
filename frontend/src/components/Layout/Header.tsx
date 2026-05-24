@@ -21,7 +21,7 @@ export default function Header({ activeView, onViewChange, onReportClick }: Head
           </div>
           <div className="leading-tight">
             <span className="font-bold text-gray-900 text-sm tracking-tight">RoadWatch</span>
-            <span className="text-xs text-orange-600 font-medium block -mt-0.5">Bangalore</span>
+            <span className="text-xs text-orange-600 font-medium block -mt-0.5">India</span>
           </div>
         </div>
 

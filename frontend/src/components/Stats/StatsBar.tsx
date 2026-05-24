@@ -12,7 +12,7 @@ export default function StatsBar({ stats, loading }: StatsBarProps) {
       icon: <AlertTriangle size={16} className="text-orange-500" />,
       label: 'Total Reports',
       value: stats?.total_issues ?? 0,
-      sub: 'across Bangalore',
+      sub: 'across India',
       bg: 'bg-orange-50',
     },
     {

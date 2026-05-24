@@ -86,17 +86,36 @@ export default function Home({
 
       {/* ── Hero band ─────────────────────────────────────────────────────── */}
       <div className="bg-gradient-to-r from-orange-600 via-orange-500 to-red-500 text-white shrink-0">
-        <div className="px-4 py-4">
-          <div className="flex flex-col md:flex-row md:items-center gap-3">
-            <div className="flex-1 min-w-0">
-              <h1 className="text-lg md:text-xl font-extrabold leading-tight tracking-tight">
-                Fix Bangalore's Roads — Together
+        <div className="px-4 py-3">
+          {/* Mobile: compact single row */}
+          <div className="flex md:hidden items-center justify-between gap-2">
+            <div className="min-w-0">
+              <h1 className="text-sm font-extrabold leading-tight tracking-tight truncate">
+                Fix India's Roads
               </h1>
-              <p className="text-orange-100 text-xs mt-0.5 hidden md:block">
+              <p className="text-orange-200 text-xs mt-0.5">
+                {loading ? '—' : stats?.total_issues ?? 0} reports · {loading ? '—' : stats?.critical ?? 0} critical · {loading ? '—' : stats?.resolved ?? 0} resolved
+              </p>
+            </div>
+            <button
+              onClick={onReportClick}
+              className="shrink-0 bg-white text-orange-600 font-bold px-3 py-1.5 rounded-xl hover:bg-orange-50 transition-colors text-sm shadow-sm"
+            >
+              + Report
+            </button>
+          </div>
+
+          {/* Desktop: full stat chips */}
+          <div className="hidden md:flex md:items-center gap-3">
+            <div className="flex-1 min-w-0">
+              <h1 className="text-xl font-extrabold leading-tight tracking-tight">
+                Fix India's Roads — Together
+              </h1>
+              <p className="text-orange-100 text-xs mt-0.5">
                 Citizen-powered. Government-ready. Report, track, and hold officials accountable.
               </p>
             </div>
-            <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-2">
               {[
                 { icon: <AlertTriangle size={12} />, label: 'Reports', value: stats?.total_issues ?? 0 },
                 { icon: <Layers size={12} />, label: 'Zones', value: stats?.total_clusters ?? 0 },
@@ -266,7 +285,7 @@ export default function Home({
         </div>
 
         {/* Bottom (mobile) / Right (desktop): Issue feed */}
-        <div className="w-full md:w-[400px] flex flex-col bg-gray-50 border-t md:border-t-0 md:border-l border-gray-200 flex-1 md:flex-none md:shrink-0">
+        <div className="w-full md:w-[400px] flex flex-col bg-gray-50 border-t md:border-t-0 md:border-l border-gray-200 flex-1 min-h-0 md:flex-none md:shrink-0">
 
           {/* Zone detail header (shown when a cluster is selected) */}
           {selectedCluster ? (

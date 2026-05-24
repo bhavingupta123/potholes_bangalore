@@ -19,6 +19,43 @@ from fastapi.staticfiles import StaticFiles
 UPLOADS_DIR = Path(__file__).parent / "uploads"
 UPLOADS_DIR.mkdir(exist_ok=True)
 
+# ── Cloudinary (optional) ─────────────────────────────────────────────────────
+# If CLOUDINARY_URL is set, images are stored in Cloudinary (persistent).
+# Otherwise they fall back to local /uploads/ (ephemeral on Render).
+_CLOUDINARY_URL = os.environ.get("CLOUDINARY_URL", "")
+_cloudinary_enabled = False
+if _CLOUDINARY_URL:
+    try:
+        import cloudinary
+        import cloudinary.uploader
+        cloudinary.config(cloudinary_url=_CLOUDINARY_URL)
+        _cloudinary_enabled = True
+    except Exception as _e:
+        print(f"[warn] cloudinary import failed: {_e}")
+
+
+async def _save_upload(upload: UploadFile, prefix: str = "") -> str:
+    """
+    Save an uploaded file either to Cloudinary (persistent) or local disk.
+    Returns the URL/path to store in the database.
+    """
+    data = await upload.read()
+    if _cloudinary_enabled:
+        import cloudinary.uploader
+        result = cloudinary.uploader.upload(
+            data,
+            folder="roadwatch",
+            public_id=f"{prefix}{uuid.uuid4()}",
+            overwrite=False,
+        )
+        return result["secure_url"]   # full https:// URL
+    else:
+        ext = Path(upload.filename).suffix.lower() if upload.filename else ".jpg"
+        fname = f"{prefix}{uuid.uuid4()}{ext}"
+        async with aiofiles.open(UPLOADS_DIR / fname, "wb") as f:
+            await f.write(data)
+        return f"/uploads/{fname}"    # relative path served by StaticFiles
+
 STATIC_DIR = Path(__file__).parent / "static"
 
 TURSO_URL = os.environ.get("TURSO_URL", "")
@@ -247,6 +284,29 @@ def update_cluster_center(conn, cluster_id: str, new_lat: float, new_lng: float)
     )
 
 
+def reverse_geocode(lat: float, lng: float) -> str:
+    """Return a human-readable area name for coordinates using Nominatim reverse geocoding."""
+    query = urllib.parse.urlencode({"lat": lat, "lon": lng, "format": "json", "zoom": 16, "addressdetails": 1})
+    url = f"https://nominatim.openstreetmap.org/reverse?{query}"
+    req = urllib.request.Request(url, headers={"User-Agent": "RoadWatch-India/1.0"})
+    try:
+        with urllib.request.urlopen(req, timeout=6) as resp:
+            data = json.loads(resp.read())
+        addr = data.get("address", {})
+        parts = []
+        for key in ["suburb", "neighbourhood", "quarter", "road", "city_district"]:
+            if addr.get(key):
+                parts.append(addr[key])
+                if len(parts) >= 2:
+                    break
+        if parts:
+            return ", ".join(parts)
+        # fallback: first component of display_name
+        return data.get("display_name", "").split(",")[0].strip()
+    except Exception:
+        return ""
+
+
 def row_to_dict(row):
     return row if row else None
 
@@ -257,7 +317,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="RoadWatch Bangalore API", lifespan=lifespan)
+app = FastAPI(title="RoadWatch India API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -276,7 +336,7 @@ def geocode(q: str):
     """Proxy to Nominatim to avoid CORS. Restricts to India."""
     query = urllib.parse.urlencode({"q": q, "format": "json", "countrycodes": "in", "limit": 10, "addressdetails": 1})
     url = f"https://nominatim.openstreetmap.org/search?{query}"
-    req = urllib.request.Request(url, headers={"User-Agent": "RoadWatch-Bangalore/1.0"})
+    req = urllib.request.Request(url, headers={"User-Agent": "RoadWatch-India/1.0"})
     try:
         with urllib.request.urlopen(req, timeout=8) as resp:
             import json
@@ -317,11 +377,7 @@ async def create_issue(
 
     photo_path = None
     if photo and photo.filename:
-        ext = Path(photo.filename).suffix.lower() or ".jpg"
-        fname = f"{uuid.uuid4()}{ext}"
-        async with aiofiles.open(UPLOADS_DIR / fname, "wb") as f:
-            await f.write(await photo.read())
-        photo_path = f"/uploads/{fname}"
+        photo_path = await _save_upload(photo)
 
     issue_id = str(uuid.uuid4())
     now = datetime.utcnow().isoformat()
@@ -338,10 +394,13 @@ async def create_issue(
             )
             update_cluster_center(conn, cluster_id, latitude, longitude)
         else:
+            # Use provided address; fall back to reverse geocoding so the dashboard
+            # never shows raw coordinates for a new zone.
+            area_name = address.strip() if address and address.strip() else reverse_geocode(latitude, longitude)
             cluster_id = str(uuid.uuid4())
             conn.execute(
                 "INSERT INTO clusters (id, center_lat, center_lng, issue_count, primary_type, max_severity, area_name, created_at, updated_at) VALUES (?,?,?,1,?,?,?,?,?)",
-                (cluster_id, latitude, longitude, type, severity, address or "", now, now),
+                (cluster_id, latitude, longitude, type, severity, area_name, now, now),
             )
 
         conn.execute(
@@ -558,7 +617,7 @@ def export_csv():
         return Response(
             content="\n".join(lines).encode(),
             media_type="text/csv",
-            headers={"Content-Disposition": "attachment; filename=roadwatch_bangalore.csv"},
+            headers={"Content-Disposition": "attachment; filename=roadwatch_india.csv"},
         )
     finally:
         conn.close()
@@ -588,11 +647,7 @@ async def submit_resolution(
 
         photo_path = None
         if photo and photo.filename:
-            ext = Path(photo.filename).suffix.lower() or ".jpg"
-            fname = f"res_{uuid.uuid4()}{ext}"
-            async with aiofiles.open(UPLOADS_DIR / fname, "wb") as f:
-                await f.write(await photo.read())
-            photo_path = f"/uploads/{fname}"
+            photo_path = await _save_upload(photo, prefix="res_")
 
         res_id = str(uuid.uuid4())
         now = datetime.utcnow().isoformat()

@@ -13,8 +13,12 @@ const API_ORIGIN = import.meta.env.VITE_API_BASE_URL || ''
 
 const api = axios.create({ baseURL: `${API_ORIGIN}/api` })
 
-export const mediaUrl = (path: string | null): string | null =>
-  path ? `${API_ORIGIN}${path}` : null
+export const mediaUrl = (path: string | null): string | null => {
+  if (!path) return null
+  // Cloudinary (and any future CDN) returns a full https:// URL — use it as-is.
+  // Legacy local uploads are relative paths like /uploads/... — prepend origin.
+  return path.startsWith('http') ? path : `${API_ORIGIN}${path}`
+}
 
 export const fetchIssues = async (params?: Record<string, string>) => {
   const { data } = await api.get<{ issues: Issue[]; total: number }>('/issues', { params })

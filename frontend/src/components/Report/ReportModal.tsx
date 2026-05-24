@@ -72,9 +72,7 @@ export default function ReportModal({ prefillLat, prefillLng, onClose, onSuccess
     searchTimeout.current = setTimeout(async () => {
       setSearching(true)
       try {
-        // Append Bangalore context but let user's query lead — backend already restricts to India
-        const query = value.toLowerCase().includes('bangalore') ? value : `${value}, Bangalore`
-        const results = await geocodeAddress(query)
+        const results = await geocodeAddress(value)
         setGeoResults(results) // show all results returned (backend caps at 10)
       } catch {
         // silently fail
@@ -139,7 +137,7 @@ export default function ReportModal({ prefillLat, prefillLng, onClose, onSuccess
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 bg-gradient-to-r from-orange-50 to-red-50">
           <div>
             <h2 className="font-extrabold text-gray-900 text-base">Report a Road Issue</h2>
-            <p className="text-xs text-gray-500 mt-0.5">Help fix Bangalore's roads</p>
+            <p className="text-xs text-gray-500 mt-0.5">Help fix India's roads</p>
           </div>
           <button onClick={onClose} className="p-2 rounded-xl hover:bg-white/80 text-gray-400">
             <X size={18} />
@@ -432,7 +430,7 @@ export default function ReportModal({ prefillLat, prefillLng, onClose, onSuccess
               <div>
                 <h3 className="font-extrabold text-gray-900 text-xl">Report Submitted!</h3>
                 <p className="text-sm text-gray-500 mt-2 leading-relaxed">
-                  Thank you for making Bangalore better.<br />
+                  Thank you for making India's roads better.<br />
                   Your report is now live on the map.
                 </p>
               </div>

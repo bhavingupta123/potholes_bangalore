@@ -2,7 +2,7 @@ import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { useEffect, useRef } from 'react'
 import type { Cluster, Issue } from '../../types'
-import { BANGALORE_CENTER, DEFAULT_ZOOM, ISSUE_TYPE_CONFIG, SEVERITY_CONFIG } from '../../utils/constants'
+import { INDIA_CENTER, DEFAULT_ZOOM, ISSUE_TYPE_CONFIG, SEVERITY_CONFIG } from '../../utils/constants'
 
 interface MapViewProps {
   clusters: Cluster[]
@@ -85,7 +85,7 @@ export default function MapView({
     if (!containerRef.current || mapRef.current) return
 
     const map = L.map(containerRef.current, {
-      center: BANGALORE_CENTER,
+      center: INDIA_CENTER,
       zoom: DEFAULT_ZOOM,
       zoomControl: false,
     })

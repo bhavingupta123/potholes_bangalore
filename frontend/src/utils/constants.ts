@@ -1,7 +1,7 @@
 import type { IssueType, Severity, Status } from '../types'
 
-export const BANGALORE_CENTER: [number, number] = [12.9716, 77.5946]
-export const DEFAULT_ZOOM = 12
+export const INDIA_CENTER: [number, number] = [20.5937, 78.9629]
+export const DEFAULT_ZOOM = 5
 
 export const ISSUE_TYPE_CONFIG: Record<IssueType, { label: string; color: string; bg: string; emoji: string }> = {
   pothole:         { label: 'Pothole',           color: '#ef4444', bg: '#fef2f2', emoji: '🕳️' },

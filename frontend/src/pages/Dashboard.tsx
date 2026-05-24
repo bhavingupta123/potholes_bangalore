@@ -78,7 +78,7 @@ export default function Dashboard({ stats, loading }: DashboardProps) {
       {/* Top summary cards */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Bangalore Road Issues</h1>
+          <h1 className="text-2xl font-bold text-gray-900">India Road Issues</h1>
           <p className="text-sm text-gray-500 mt-0.5">Real-time dashboard for civic authorities</p>
         </div>
         <a
@@ -245,7 +245,7 @@ export default function Dashboard({ stats, loading }: DashboardProps) {
                       <td className="py-2.5 text-xs text-gray-400 font-medium">{i + 1}</td>
                       <td className="py-2.5">
                         <div className="text-xs font-medium text-gray-800">
-                          {c.area_name || `${c.center_lat.toFixed(4)}, ${c.center_lng.toFixed(4)}`}
+                          {c.area_name || 'Unnamed Zone'}
                         </div>
                         <div className="text-xs text-gray-400 font-mono">
                           {c.center_lat.toFixed(4)}, {c.center_lng.toFixed(4)}
@@ -284,7 +284,7 @@ export default function Dashboard({ stats, loading }: DashboardProps) {
       {/* Footer note */}
       <div className="bg-gradient-to-r from-orange-50 to-red-50 border border-orange-200 rounded-2xl p-5 text-center">
         <p className="text-sm font-semibold text-orange-800">
-          This data is collected by citizens of Bangalore and compiled for government action.
+          This data is collected by citizens of India and compiled for government action.
         </p>
         <p className="text-xs text-orange-600 mt-1">
           Reports are automatically grouped when they fall within a 2km radius of each other.
