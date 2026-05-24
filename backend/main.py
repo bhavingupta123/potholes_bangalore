@@ -7,7 +7,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-import libsql_experimental as libsql
+import json
+import urllib.error
 
 import aiofiles
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
@@ -39,56 +40,117 @@ def haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
 
-class _DictCursor:
-    """Wraps a libsql cursor so rows are returned as dicts."""
-    def __init__(self, cursor):
-        self._c = cursor
+def _turso_http_url() -> str:
+    """Convert libsql:// URL to https:// for the Turso HTTP API."""
+    return TURSO_URL.replace("libsql://", "https://", 1)
 
-    @property
-    def description(self):
-        return self._c.description
 
-    @property
-    def lastrowid(self):
-        return self._c.lastrowid
-
-    def _to_dict(self, row):
-        if row is None:
-            return None
-        cols = [d[0] for d in self._c.description]
-        return dict(zip(cols, row))
+class _TursoResult:
+    """Mimics sqlite3 cursor: rows are plain dicts."""
+    def __init__(self, cols: list[str], rows: list[dict]):
+        self._cols = cols
+        self._rows = rows
+        self._pos = 0
 
     def fetchone(self):
-        return self._to_dict(self._c.fetchone())
+        if self._pos >= len(self._rows):
+            return None
+        row = self._rows[self._pos]
+        self._pos += 1
+        return row
 
     def fetchall(self):
-        cols = [d[0] for d in self._c.description]
-        return [dict(zip(cols, r)) for r in self._c.fetchall()]
+        return self._rows[self._pos:]
 
     def __iter__(self):
-        cols = [d[0] for d in self._c.description]
-        for row in self._c:
-            yield dict(zip(cols, row))
+        return iter(self._rows)
 
 
-class _DictConn:
-    """Wraps a libsql connection so every execute returns a _DictCursor."""
-    def __init__(self, conn):
-        self._conn = conn
+class TursoConn:
+    """
+    Lightweight sqlite3-compatible wrapper over the Turso HTTP pipeline API.
+    Batches all execute() calls and flushes on commit() or close().
+    """
+    def __init__(self):
+        self._pending: list[dict] = []   # write stmts queued until commit
+        self._base = _turso_http_url()
+        self._headers = {
+            "Authorization": f"Bearer {TURSO_TOKEN}",
+            "Content-Type": "application/json",
+        }
 
-    def execute(self, sql, params=()):
-        return _DictCursor(self._conn.execute(sql, tuple(params)))
+    def _send(self, stmts: list[dict]) -> list:
+        requests = [{"type": "execute", "stmt": s} for s in stmts]
+        requests.append({"type": "close"})
+        body = json.dumps({"requests": requests}).encode()
+        req = urllib.request.Request(
+            f"{self._base}/v2/pipeline",
+            data=body,
+            headers=self._headers,
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            data = json.loads(resp.read())
+
+        results = []
+        for item in data.get("results", []):
+            if item.get("type") == "error":
+                raise RuntimeError(f"Turso error: {item['error']}")
+            if item.get("type") == "ok" and item["response"]["type"] == "execute":
+                result = item["response"]["result"]
+                cols = [c["name"] for c in result["cols"]]
+                rows = []
+                for raw_row in result["rows"]:
+                    row = {}
+                    for col, cell in zip(cols, raw_row):
+                        val = cell.get("value")
+                        if cell.get("type") == "integer" and val is not None:
+                            val = int(val)
+                        elif cell.get("type") == "float" and val is not None:
+                            val = float(val)
+                        row[col] = val
+                    rows.append(row)
+                results.append(_TursoResult(cols, rows))
+        return results
+
+    def execute(self, sql: str, params=()) -> _TursoResult:
+        # Build positional args for Turso
+        args = []
+        for p in params:
+            if p is None:
+                args.append({"type": "null"})
+            elif isinstance(p, bool):
+                args.append({"type": "integer", "value": str(int(p))})
+            elif isinstance(p, int):
+                args.append({"type": "integer", "value": str(p)})
+            elif isinstance(p, float):
+                args.append({"type": "float", "value": p})
+            else:
+                args.append({"type": "text", "value": str(p)})
+
+        stmt = {"sql": sql, "args": args}
+        sql_upper = sql.strip().upper()
+
+        if sql_upper.startswith(("SELECT", "PRAGMA")):
+            # Read — send immediately
+            results = self._send([stmt])
+            return results[0] if results else _TursoResult([], [])
+        else:
+            # Write — queue for commit
+            self._pending.append(stmt)
+            return _TursoResult([], [])
 
     def commit(self):
-        self._conn.commit()
+        if self._pending:
+            self._send(self._pending)
+            self._pending = []
 
     def close(self):
-        self._conn.close()
+        self.commit()
 
 
-def get_db() -> _DictConn:
-    conn = libsql.connect(database=TURSO_URL, auth_token=TURSO_TOKEN)
-    return _DictConn(conn)
+def get_db() -> TursoConn:
+    return TursoConn()
 
 
 def init_db():
