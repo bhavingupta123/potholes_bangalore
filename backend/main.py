@@ -39,15 +39,56 @@ def haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
 
-def _dict_factory(cursor, row):
-    fields = [d[0] for d in cursor.description]
-    return {k: v for k, v in zip(fields, row)}
+class _DictCursor:
+    """Wraps a libsql cursor so rows are returned as dicts."""
+    def __init__(self, cursor):
+        self._c = cursor
+
+    @property
+    def description(self):
+        return self._c.description
+
+    @property
+    def lastrowid(self):
+        return self._c.lastrowid
+
+    def _to_dict(self, row):
+        if row is None:
+            return None
+        cols = [d[0] for d in self._c.description]
+        return dict(zip(cols, row))
+
+    def fetchone(self):
+        return self._to_dict(self._c.fetchone())
+
+    def fetchall(self):
+        cols = [d[0] for d in self._c.description]
+        return [dict(zip(cols, r)) for r in self._c.fetchall()]
+
+    def __iter__(self):
+        cols = [d[0] for d in self._c.description]
+        for row in self._c:
+            yield dict(zip(cols, row))
 
 
-def get_db():
+class _DictConn:
+    """Wraps a libsql connection so every execute returns a _DictCursor."""
+    def __init__(self, conn):
+        self._conn = conn
+
+    def execute(self, sql, params=()):
+        return _DictCursor(self._conn.execute(sql, tuple(params)))
+
+    def commit(self):
+        self._conn.commit()
+
+    def close(self):
+        self._conn.close()
+
+
+def get_db() -> _DictConn:
     conn = libsql.connect(database=TURSO_URL, auth_token=TURSO_TOKEN)
-    conn.row_factory = _dict_factory
-    return conn
+    return _DictConn(conn)
 
 
 def init_db():
